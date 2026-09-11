@@ -1,67 +1,178 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.8</version>
-        <relativePath/>
-    </parent>
-
+  <parent>
     <groupId>org.gbif</groupId>
-    <artifactId>parquet-explorer-shim</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
-    <name>parquet-explorer-shim</name>
-    <description>WebHDFS range-request shim for DuckDB-WASM</description>
+    <artifactId>motherpom</artifactId>
+    <version>61</version>
+  </parent>
 
-    <properties>
-        <java.version>17</java.version>
-    </properties>
+  <artifactId>parquet-explorer-shim</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
 
+  <name>GBIF Parquet Explorer Shim</name>
+  <description>WebHDFS range-request shim for DuckDB-WASM</description>
+  <url>http://github.com/gbif/parquet-explorer-shim</url>
+
+  <scm>
+    <connection>scm:git:git@github.com:gbif/parquet-explorer-shim.git</connection>
+    <url>https://github.com/gbif/parquet-explorer-shim</url>
+    <developerConnection>scm:git:git@github.com:gbif/parquet-explorer-shim.git</developerConnection>
+    <tag>HEAD</tag>
+  </scm>
+
+  <distributionManagement>
+    <site>
+      <id>gh-pages</id>
+      <url>http://gbif.github.io/parquet-explorer-shim.git/</url>
+    </site>
+  </distributionManagement>
+
+  <properties>
+    <jdkLevel>17</jdkLevel>
+    <java.version>17</java.version>
+    <main.basedir>${project.basedir}</main.basedir>
+    <start-class>org.gbif.parquetexplorer.shim.ParquetExplorerShimApplication</start-class>
+
+    <spring-boot.version>3.5.8</spring-boot.version>
+
+    <!-- Used by the DwcDpParquetConverter CLI to convert datapackage TSV/CSV
+         resources to parquet. Pinned to 0.10.0 because our Maven mirror
+         blocks direct Central access for newer duckdb_jdbc releases. -->
+    <duckdb-jdbc.version>0.10.0</duckdb-jdbc.version>
+
+    <!-- Plugins -->
+    <spring-boot-maven-plugin.version>${spring-boot.version}</spring-boot-maven-plugin.version>
+    <maven-compiler-plugin.version>3.14.1</maven-compiler-plugin.version>
+  </properties>
+
+  <repositories>
+    <repository>
+      <id>gbif-all</id>
+      <url>https://repository.gbif.org/content/groups/gbif</url>
+    </repository>
+    <repository>
+      <id>gbif-thirdparty</id>
+      <url>https://repository.gbif.org/content/repositories/thirdparty</url>
+    </repository>
+  </repositories>
+
+  <build>
+    <testResources>
+      <testResource>
+        <directory>src/test/resources</directory>
+        <filtering>true</filtering>
+      </testResource>
+    </testResources>
+
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${spring-boot-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>repackage</id>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+            <configuration>
+              <attach>true</attach>
+              <classifier>exec</classifier>
+            </configuration>
+          </execution>
+          <execution>
+            <id>build-info</id>
+            <goals>
+              <goal>build-info</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <mainClass>${start-class}</mainClass>
+          <addResources>false</addResources>
+          <layout>ZIP</layout>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <excludes>
+            <!-- This is where the exclusion occurs -->
+            <exclude>**/application.yml</exclude>
+          </excludes>
+          <archive>
+            <manifest>
+              <mainClass>${start-class}</mainClass>
+              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <configuration>
+          <source>${java.version}</source>
+          <target>${java.version}</target>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+  <dependencyManagement>
     <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-        </dependency>
-
-        <!-- Prometheus metrics endpoint -->
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-registry-prometheus</artifactId>
-        </dependency>
-
-        <!-- Used by the DwcDpParquetConverter CLI to convert datapackage TSV/CSV
-             resources to parquet. Pinned to 0.10.0 because our Maven mirror
-             blocks direct Central access for newer duckdb_jdbc releases. -->
-        <dependency>
-            <groupId>org.duckdb</groupId>
-            <artifactId>duckdb_jdbc</artifactId>
-            <version>0.10.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
     </dependencies>
+  </dependencyManagement>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!-- Prometheus metrics endpoint -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+
+    <!-- Used by the DwcDpParquetConverter CLI to convert datapackage TSV/CSV
+         resources to parquet. -->
+    <dependency>
+      <groupId>org.duckdb</groupId>
+      <artifactId>duckdb_jdbc</artifactId>
+      <version>${duckdb-jdbc.version}</version>
+    </dependency>
+
+    <!-- Test -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
 </project>

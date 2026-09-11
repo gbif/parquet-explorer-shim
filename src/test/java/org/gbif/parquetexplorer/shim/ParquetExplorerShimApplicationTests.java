@@ -8,7 +8,8 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = {
     "hdfs.webhdfs-base-url=http://localhost:9870/webhdfs/v1",
     "hdfs.allowed-prefixes=/data",
-    "shim.cors-allowed-origin=*"
+    "shim.cors-allowed-origin=*",
+    "local.base-path=/tmp/gbif/dwcdprepo"
 })
 class ParquetExplorerShimApplicationTests {
 

@@ -1,0 +1,125 @@
+# dp-explorer — Apache VirtualHost template for serving the frontend build
+# as static files while reverse-proxying the API paths to this shim.
+#
+# This is a template, not a ready-to-use config: render it by substituting
+# the ${...} placeholders below (e.g. with `envsubst`) before deploying.
+#
+#   export SERVER_NAME=dwcdp-explorer.labs.gbif.org
+#   export DOCUMENT_ROOT=/var/www/dwcdp-explorer
+#   export BACKEND_HOST=cli1.gbif-dev.org
+#   export BACKEND_PORT=10000
+#   export LISTEN_PORT=9090          # only used by OPTION B below
+#   export SSL_CERT_FILE=/etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem
+#   export SSL_KEY_FILE=/etc/letsencrypt/live/${SERVER_NAME}/privkey.pem
+#
+#   envsubst '${SERVER_NAME} ${DOCUMENT_ROOT} ${BACKEND_HOST} ${BACKEND_PORT} ${LISTEN_PORT} ${SSL_CERT_FILE} ${SSL_KEY_FILE}' \
+#       < dwcdp-explorer.conf.template > dwcdp-explorer.conf
+#
+# Then deploy the rendered file:
+#   sudo cp dwcdp-explorer.conf /etc/apache2/sites-available/dwcdp-explorer.conf
+#   sudo a2enmod proxy proxy_http headers rewrite
+#   sudo a2ensite dwcdp-explorer
+#   sudo systemctl reload apache2
+#
+# Build the frontend first:
+#   cd frontend && VITE_SHIM_BASE_URL=/ VITE_GBIF_API_BASE_URL=https://api.gbif-dev.org/v1 npm run build
+#   sudo cp -r dist/* ${DOCUMENT_ROOT}/
+#
+# VITE_SHIM_BASE_URL=/ means the frontend calls the shim as a same-origin
+# relative path (e.g. POST /dataset/{uuid}/dwcdp/query) — Apache proxies
+# just that one path below to wherever the shim actually runs.
+# VITE_GBIF_API_BASE_URL points straight at GBIF's own catalog API, not
+# through this Apache at all (separate service, CORS already open there) —
+# make sure it's the same environment as the shim's local.base-path /
+# hdfs.dwcdp-root-path / gbif.api-base-url, or the catalog will list
+# datasets the shim can't find (see README's "Known limitations").
+
+# ===========================================================================
+# OPTION A — subdomain:  http://${SERVER_NAME}  (plain HTTP)
+# Requires a DNS A record pointing ${SERVER_NAME} at this server.
+# ===========================================================================
+
+<VirtualHost *:80>
+    ServerName   ${SERVER_NAME}
+    DocumentRoot ${DOCUMENT_ROOT}
+
+    ProxyPreserveHost Off
+    ProxyTimeout      300
+    # The only path the frontend calls on the shim — see VITE_SHIM_BASE_URL
+    # above. If you add other shim endpoints later, proxy those too.
+    ProxyPass        /dataset  http://${BACKEND_HOST}:${BACKEND_PORT}/dataset
+    ProxyPassReverse /dataset  http://${BACKEND_HOST}:${BACKEND_PORT}/dataset
+
+    <Directory ${DOCUMENT_ROOT}>
+        Options -Indexes
+        AllowOverride None
+        Require all granted
+        RewriteEngine On
+        RewriteBase /
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteRule ^ /index.html [L]
+    </Directory>
+
+    ErrorLog  ${APACHE_LOG_DIR}/dwcdp-explorer-error.log
+    CustomLog ${APACHE_LOG_DIR}/dwcdp-explorer-access.log combined
+</VirtualHost>
+
+# To add HTTPS later, uncomment and configure:
+#<VirtualHost *:443>
+#    ServerName   ${SERVER_NAME}
+#    DocumentRoot ${DOCUMENT_ROOT}
+#
+#    SSLEngine on
+#    SSLCertificateFile    ${SSL_CERT_FILE}
+#    SSLCertificateKeyFile ${SSL_KEY_FILE}
+#    Header always set Strict-Transport-Security    "max-age=63072000"
+#
+#    ProxyPreserveHost Off
+#    ProxyTimeout      300
+#    ProxyPass        /dataset  http://${BACKEND_HOST}:${BACKEND_PORT}/dataset
+#    ProxyPassReverse /dataset  http://${BACKEND_HOST}:${BACKEND_PORT}/dataset
+#
+#    <Directory ${DOCUMENT_ROOT}>
+#        Options -Indexes
+#        AllowOverride None
+#        Require all granted
+#        RewriteEngine On
+#        RewriteBase /
+#        RewriteCond %{REQUEST_FILENAME} !-f
+#        RewriteRule ^ /index.html [L]
+#    </Directory>
+#
+#    ErrorLog  ${APACHE_LOG_DIR}/dwcdp-explorer-error.log
+#    CustomLog ${APACHE_LOG_DIR}/dwcdp-explorer-access.log combined
+#</VirtualHost>
+
+
+# ===========================================================================
+# OPTION B — dedicated port:  http://<this-host>:${LISTEN_PORT}
+# No DNS change needed. Open the port in the firewall and add
+#   Listen ${LISTEN_PORT}
+# to /etc/apache2/ports.conf (or httpd.conf).
+# ===========================================================================
+
+#<VirtualHost *:${LISTEN_PORT}>
+#    ServerName   ${SERVER_NAME}
+#    DocumentRoot ${DOCUMENT_ROOT}
+#
+#    ProxyPreserveHost Off
+#    ProxyTimeout      300
+#    ProxyPass        /dataset  http://${BACKEND_HOST}:${BACKEND_PORT}/dataset
+#    ProxyPassReverse /dataset  http://${BACKEND_HOST}:${BACKEND_PORT}/dataset
+#
+#    <Directory ${DOCUMENT_ROOT}>
+#        Options -Indexes
+#        AllowOverride None
+#        Require all granted
+#        RewriteEngine On
+#        RewriteBase /
+#        RewriteCond %{REQUEST_FILENAME} !-f
+#        RewriteRule ^ /index.html [L]
+#    </Directory>
+#
+#    ErrorLog  ${APACHE_LOG_DIR}/dwcdp-explorer-error.log
+#    CustomLog ${APACHE_LOG_DIR}/dwcdp-explorer-access.log combined
+#</VirtualHost>

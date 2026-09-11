@@ -1,0 +1,106 @@
+# application.yml — WebHDFS range-request shim
+#
+# Place alongside your existing Spring Boot config, or merge these keys
+# into your existing application.yml if this shim lives in an existing
+# service rather than its own deployable.
+
+server:
+  port: 8080
+
+hdfs:
+  # NameNode WebHDFS endpoint. If you're behind HA/NN failover, point this
+  # at whatever your cluster already uses for WebHDFS access (a VIP, a
+  # router-based federation endpoint, knox, etc.)
+  webhdfs-base-url: http://namenode:80001/webhdfs/v1
+
+  # Comma-separated path prefixes this shim is allowed to serve. Keep this
+  # tight — this becomes the de facto access boundary for a public-facing
+  # tool. Add prefixes as you onboard more datasets.
+  allowed-prefixes: /
+
+  # Required by Stackable WebHDFS to route to the correct NameNode.
+  # Omit (leave blank) if your cluster doesn't need it.
+  namenoderpcaddress: hdfs-address
+
+  # Root directory in HDFS under which every dataset's converted DWC-DP
+  # parquet output lives, one subdirectory per dataset UUID and then per
+  # crawl attempt number:
+  #   <dwcdp-root-path>/<uuid>/<attempt>/datapackage.json
+  #   <dwcdp-root-path>/<uuid>/<attempt>/<resource>.parquet
+  # This is the fallback repository — POST /dataset/{uuid}/dwcdp/{attempt}/query
+  # checks local.base-path first and only reads from here when the
+  # dataset/attempt isn't found locally. Must fall under allowed-prefixes
+  # above. Leave blank to disable the HDFS fallback (queries then fail
+  # outright for any dataset not present locally, instead of trying HDFS).
+  dwcdp-root-path: /data/ingest_dev/
+
+gbif:
+  # Base URL of GBIF's own registry/pipelines API — the server-side
+  # counterpart to the frontend's VITE_GBIF_API_BASE_URL (see
+  # dwcdp-explorer.conf). Used only by POST /dataset/{uuid}/dwcdp/query to
+  # resolve a dataset's last successful crawl attempt via
+  # GET {api-base-url}/pipelines/history/{uuid}/lastSuccessfulAttempt
+  # before running the same query the {attempt}-taking endpoint does. Point
+  # this at the same environment as local.base-path / hdfs.dwcdp-root-path.
+  api-base-url: https://api.gbif.org/v1
+
+local:
+  # Root directory (typically an NFS mount) under which every dataset's
+  # converted DWC-DP parquet output lives, one subdirectory per dataset
+  # UUID and then per crawl attempt number — the local counterpart to
+  # hdfs.dwcdp-root-path:
+  #   <base-path>/<uuid>/<attempt>/datapackage.json
+  #   <base-path>/<uuid>/<attempt>/<resource>.parquet
+  # POST /dataset/{uuid}/dwcdp/{attempt}/query checks here first; only when
+  # a dataset/attempt isn't found here does it fall back to hdfs.dwcdp-root-path.
+  base-path: /tmp/gbif/dwcdprepo
+
+shim:
+  # Consumed by CorsConfig (app-wide CORS, the only place it's configured).
+  # Comma-separated if you need more than one origin. Lock this down to your
+  # actual frontend origin(s) in production — wildcard is fine for local dev
+  # only.
+  cors-allowed-origin: "http://localhost:5173"
+
+  # user.name passed to WebHDFS simple auth.
+  webhdfs-user: "user"
+
+  # This service's own reachable base URL. Used by DuckDbQueryController to
+  # build the httpfs source URL (self-base-url + /hdfs/<path>) that the
+  # server-side DuckDB query endpoint reads through — reusing the same
+  # range-request translation the browser client uses, instead of talking to
+  # WebHDFS directly a second time.
+  self-base-url: "http://localhost:${server.port}"
+
+duckdb:
+  query:
+    # Number of pre-warmed DuckDB JDBC connections kept ready for /query/*.
+    # Each holds real memory/threads; size to expected concurrent query load,
+    # not request volume (queries queue behind borrow-timeout-seconds once
+    # the pool is exhausted, they don't get their own connection).
+    pool-size: 4
+
+    # Rows buffered into the JSON response before truncating. This bounds
+    # response size/memory, not query cost — DuckDB still executes the full
+    # query server-side; add a LIMIT in the SQL to bound actual work done.
+    max-rows: 10000
+
+    # Passed to Statement#setQueryTimeout. duckdb_jdbc's support for actually
+    # interrupting an in-flight native query has historically been partial,
+    # so treat this as a safety net rather than a hard guarantee.
+    timeout-seconds: 60
+
+    # How long a request waits for a free pooled connection before failing
+    # with 503 rather than queuing indefinitely.
+    borrow-timeout-seconds: 5
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: parquet-explorer-shim
+  # Prometheus scrape endpoint exposed at /actuator/prometheus — wire into
+  # your existing Prometheus/Grafana setup like any other Spring Boot service.

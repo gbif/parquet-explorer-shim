@@ -1,5 +1,6 @@
 package org.gbif.parquetexplorer.shim;
 
+import java.util.Collections;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,9 +46,6 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
-    @Value("${shim.cors-allowed-origin:*}")
-    private String corsAllowedOrigin;
-
     @Bean
     public CorsFilter corsFilter() {
         return new CorsFilter(corsConfigurationSource());
@@ -57,16 +55,15 @@ public class CorsConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         // CorsFilter only applies this if the origin header is present in the request
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(Arrays.asList(corsAllowedOrigin.split(",")));
-        configuration.setAllowedMethods(Arrays.asList("GET", "HEAD", "POST", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*"));
-        // DuckDB-WASM needs these readable from range-request responses; the
-        // query endpoints don't need them but exposing extra headers on
-        // responses that don't have them is a no-op, not a problem.
+        configuration.setAllowedHeaders(Arrays.asList("authorization", "content-type"));
+        configuration.setAllowedOrigins(Collections.singletonList("*"));
+        configuration.setAllowedMethods(
+            Arrays.asList("HEAD", "GET", "POST", "DELETE", "PUT", "OPTIONS"));
         configuration.setExposedHeaders(
-                Arrays.asList("Accept-Ranges", "Content-Range", "Content-Length", "ETag", "Last-Modified"));
-        configuration.setMaxAge(3600L);
-
+            Arrays.asList(
+                "Access-Control-Allow-Origin",
+                "Access-Control-Allow-Methods",
+                "Access-Control-Allow-Headers"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

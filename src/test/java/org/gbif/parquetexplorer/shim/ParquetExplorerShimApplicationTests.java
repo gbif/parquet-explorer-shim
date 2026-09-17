@@ -9,7 +9,9 @@ import org.springframework.test.context.TestPropertySource;
     "hdfs.webhdfs-base-url=http://localhost:9870/webhdfs/v1",
     "hdfs.allowed-prefixes=/data",
     "shim.cors-allowed-origin=*",
-    "local.base-path=/tmp/gbif/dwcdprepo"
+    "local.base-path=/tmp/gbif/dwcdprepo",
+    "spring.config.import=optional:zookeeper:",
+    "spring.cloud.zookeeper.enabled=false"
 })
 class ParquetExplorerShimApplicationTests {
 

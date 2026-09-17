@@ -43,7 +43,7 @@ All configuration is in `src/main/resources/application.yml`, overridable via en
 | `hdfs.dwcdp-root-path` | Root under which converted datapackages live in HDFS, as `<uuid>/<attempt>/`. Fallback repository for the query endpoints; leave blank to disable the HDFS fallback entirely. |
 | `local.base-path` | Root under which converted datapackages live on local disk (typically an NFS mount), as `<uuid>/<attempt>/`. Checked before HDFS. |
 | `gbif.api-base-url` | Base URL of GBIF's registry/pipelines API, used only to resolve `lastSuccessfulAttempt` for `POST /dataset/{uuid}/dwcdp/query`. |
-| `shim.cors-allowed-origin` | Comma-separated allowed CORS origins (see `CorsConfig`). |
+| `shim.cors-allowed-origin` | Comma-separated allowed CORS origins (see `WebSecurityConfigurer`). |
 | `shim.webhdfs-user` | `user.name` passed to WebHDFS simple auth. |
 | `shim.self-base-url` | This service's own reachable base URL, used to build the loopback `/hdfs/...` source URL the query endpoints read HDFS-fallback datapackages through. |
 | `duckdb.query.pool-size` | Pre-warmed DuckDB JDBC connections kept ready for queries. |

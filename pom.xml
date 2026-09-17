@@ -9,7 +9,7 @@
   </parent>
 
   <artifactId>parquet-explorer-shim</artifactId>
-  <version>0.1.0</version>
+  <version>0.1.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>GBIF Parquet Explorer Shim</name>
@@ -20,7 +20,7 @@
     <connection>scm:git:git@github.com:gbif/parquet-explorer-shim.git</connection>
     <url>https://github.com/gbif/parquet-explorer-shim</url>
     <developerConnection>scm:git:git@github.com:gbif/parquet-explorer-shim.git</developerConnection>
-    <tag>parquet-explorer-shim-0.1.0</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <distributionManagement>

@@ -4,6 +4,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -54,23 +57,50 @@ public class DuckDbQueryService {
     private final int maxRows;
     private final int timeoutSeconds;
     private final int borrowTimeoutSeconds;
+    private final String homeDirectory;
 
     public DuckDbQueryService(
             @Value("${duckdb.query.pool-size:4}") int poolSize,
             @Value("${duckdb.query.max-rows:10000}") int maxRows,
             @Value("${duckdb.query.timeout-seconds:60}") int timeoutSeconds,
-            @Value("${duckdb.query.borrow-timeout-seconds:5}") int borrowTimeoutSeconds) throws SQLException {
+            @Value("${duckdb.query.borrow-timeout-seconds:5}") int borrowTimeoutSeconds,
+            @Value("${duckdb.home-directory:}") String configuredHomeDirectory) throws SQLException {
         this.maxRows = maxRows;
         this.timeoutSeconds = timeoutSeconds;
         this.borrowTimeoutSeconds = borrowTimeoutSeconds;
+        this.homeDirectory = resolveHomeDirectory(configuredHomeDirectory);
         this.pool = new ArrayBlockingQueue<>(poolSize);
         for (int i = 0; i < poolSize; i++) {
             pool.add(newConnection());
         }
     }
 
+    /**
+     * DuckDB needs a home directory to locate its extension cache (~/.duckdb by
+     * default) — it resolves that from the process's HOME env var, which is
+     * empty or unset in some deployment environments (service accounts,
+     * containers, systemd units), causing "Can't find the home directory at ''"
+     * at startup. Pin it explicitly instead of trusting the environment.
+     */
+    private static String resolveHomeDirectory(String configured) throws SQLException {
+        Path dir = (configured != null && !configured.isBlank())
+                ? Path.of(configured)
+                : Path.of(System.getProperty("java.io.tmpdir"), "duckdb-home");
+        try {
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            throw new SQLException("Failed to create DuckDB home directory at " + dir, e);
+        }
+        return dir.toAbsolutePath().toString();
+    }
+
     private Connection newConnection() throws SQLException {
         Connection conn = DriverManager.getConnection("jdbc:duckdb:");
+        // home_directory can't be set as a global startup Property (DuckDB
+        // rejects it as "Could not set option ... as a global option") — it
+        // has to be a session SET, issued before anything that needs it
+        // (INSTALL, below) runs.
+        //
         // httpfs is required for the /hdfs loopback source (see
         // DuckDbQueryController) and is a no-op extra for local reads.
         // INSTALL fetches from DuckDB's extension repository on first use and
@@ -78,6 +108,7 @@ public class DuckDbQueryService {
         // restricted as the Maven mirror note in pom.xml suggests, pre-seed
         // the extension cache out of band or this will fail at startup.
         try (Statement st = conn.createStatement()) {
+            st.execute("SET home_directory=" + sqlLiteral(homeDirectory) + ";");
             st.execute("INSTALL httpfs; LOAD httpfs;");
         } catch (SQLException e) {
             conn.close();
